@@ -1,0 +1,7 @@
+in cmd
+set NODE_OPTIONS=--openssl-legacy-provider
+then
+npm start
+
+netstat -ano | findstr :3000
+taskkill /PID <Your_PID> /F

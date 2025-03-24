@@ -8,6 +8,7 @@ import Paginator from '../../components/Paginator/Paginator';
 import Loader from '../../components/Loader/Loader';
 import ErrorHandler from '../../components/ErrorHandler/ErrorHandler';
 import './Feed.css';
+import io  from "socket.io-client";
 
 class Feed extends Component {
   state = {
@@ -35,7 +36,28 @@ class Feed extends Component {
       .catch(this.catchError);
 
     this.loadPosts();
+    //const openSocket = (url) => io(url);
+    const socket = io("http://localhost:8080");
+    socket.on('posts' , data => {
+        if (data.action === 'create') {
+          this.addPost(data.post);
+        }
+    });
   }
+
+  addPost = post => {
+    this.setState(prevState => {
+      const updatedPosts = [...prevState.posts];
+      if (prevState.postPage === 1) {
+        updatedPosts.pop();
+        updatedPosts.unshift(post);
+      }
+      return {
+        posts: updatedPosts,
+        totalPosts: prevState.totalPosts + 1
+      };
+    });
+  };
 
   loadPosts = direction => {
     if (direction) {
@@ -64,6 +86,7 @@ class Feed extends Component {
       .then(resData => {
         this.setState({
           posts: resData.posts.map(post => {
+            console.log(post.creator);
             return {
               ...post,
               imagePath: post.imageUrl
@@ -154,9 +177,7 @@ class Feed extends Component {
               p => p._id === prevState.editPost._id
             );
             updatedPosts[postIndex] = post;
-          } else if (prevState.posts.length < 2) {
-            updatedPosts = prevState.posts.concat(post);
-          }
+          } 
           return {
             posts: updatedPosts,
             isEditing: false,
