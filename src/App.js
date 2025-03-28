@@ -69,7 +69,8 @@ class App extends Component {
         password : authData.password, 
       })
     })
-      .then(res => {
+    .then(res => {
+        console.log("Raw response: ", res);
         if (res.status === 422) {
           throw new Error('Validation failed.');
         }
@@ -80,7 +81,7 @@ class App extends Component {
         return res.json();
       })
       .then(resData => {
-        console.log(resData);
+        console.log("Parsed response: ", resData);
         this.setState({
           isAuth: true,
           token: resData.token,
@@ -97,13 +98,14 @@ class App extends Component {
         this.setAutoLogout(remainingMilliseconds);
       })
       .catch(err => {
-        console.log(err);
+        console.error("Error in fetch: ", err);
         this.setState({
           isAuth: false,
           authLoading: false,
           error: err
         });
       });
+      
   };
 
   signupHandler = (event, authData) => {

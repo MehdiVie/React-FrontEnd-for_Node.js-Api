@@ -23,27 +23,41 @@ class Feed extends Component {
   };
 
   componentDidMount() {
-    fetch('URL')
-      .then(res => {
-        if (res.status !== 200) {
-          throw new Error('Failed to fetch user status.');
-        }
-        return res.json();
-      })
-      .then(resData => {
+    fetch('URL') // Replace with the correct URL
+    .then(res => {
+      console.log("Response Status:", res.status); // Log response status
+      if (res.status !== 200) {
+        throw new Error('Failed to fetch user status.');
+      }
+      return res.text(); // Read response as text first
+    })
+    .then(text => {
+      console.log("Raw Response Text:", text); // Log raw text response
+      try {
+        const resData = JSON.parse(text); // Try to parse as JSON
         this.setState({ status: resData.status });
-      })
-      .catch(this.catchError);
-
+      } catch (error) {
+        console.error("JSON Parsing Error:", error); // Catch JSON parsing errors
+        this.setState({ status: 'Error in parsing response' }); // Set error state if parsing fails
+      }
+    })
+    .catch(this.catchError);
+  
     this.loadPosts();
-    //const openSocket = (url) => io(url);
+    
+    // Set up socket connection
     const socket = io("http://localhost:8080");
-    socket.on('posts' , data => {
-        if (data.action === 'create') {
-          this.addPost(data.post);
-        }
+    socket.on('posts', data => {
+      if (data.action === 'create') {
+        this.addPost(data.post);
+      } else if (data.action === 'update') {
+        this.updatePost(data.post);
+      } else if (data.action === 'delete') {
+        this.loadPosts();
+      }
     });
   }
+  
 
   addPost = post => {
     this.setState(prevState => {
@@ -55,6 +69,19 @@ class Feed extends Component {
       return {
         posts: updatedPosts,
         totalPosts: prevState.totalPosts + 1
+      };
+    });
+  };
+
+  updatePost = post => {
+    this.setState(prevState => {
+      const updatedPosts = [...prevState.posts];
+      const updatedPostIndex = updatedPosts.findIndex(p => p._id === post._id);
+      if (updatedPostIndex > -1) {
+        updatedPosts[updatedPostIndex] = post;
+      }
+      return {
+        posts: updatedPosts
       };
     });
   };
@@ -77,7 +104,8 @@ class Feed extends Component {
         'Authorization' : 'Bearer ' + this.props.token
       }
     })
-      .then(res => {
+
+    .then(res => {
         if (res.status !== 200) {
           throw new Error('Failed to fetch posts.');
         }
@@ -97,6 +125,7 @@ class Feed extends Component {
         });
       })
       .catch(this.catchError);
+      
   };
 
   statusUpdateHandler = event => {
@@ -163,23 +192,15 @@ class Feed extends Component {
       })
       .then(resData => {
         console.log(resData);
-        const post = {
+        /*const post = {
           _id: resData.post._id,
           title: resData.post.title,
           content: resData.post.content,
           creator: resData.post.creator,
           createdAt: resData.post.createdAt
-        };
+        };*/
         this.setState(prevState => {
-          let updatedPosts = [...prevState.posts];
-          if (prevState.editPost) {
-            const postIndex = prevState.posts.findIndex(
-              p => p._id === prevState.editPost._id
-            );
-            updatedPosts[postIndex] = post;
-          } 
           return {
-            posts: updatedPosts,
             isEditing: false,
             editPost: null,
             editLoading: false
@@ -217,10 +238,11 @@ class Feed extends Component {
       })
       .then(resData => {
         console.log(resData);
-        this.setState(prevState => {
+        this.loadPosts();
+        /*this.setState(prevState => {
           const updatedPosts = prevState.posts.filter(p => p._id !== postId);
           return { posts: updatedPosts, postsLoading: false };
-        });
+        });*/
       })
       .catch(err => {
         console.log(err);
