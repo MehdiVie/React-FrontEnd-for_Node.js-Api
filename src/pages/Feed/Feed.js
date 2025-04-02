@@ -8,7 +8,7 @@ import Paginator from '../../components/Paginator/Paginator';
 import Loader from '../../components/Loader/Loader';
 import ErrorHandler from '../../components/ErrorHandler/ErrorHandler';
 import './Feed.css';
-import io  from "socket.io-client";
+
 
 class Feed extends Component {
   state = {
@@ -32,7 +32,7 @@ class Feed extends Component {
       return res.text(); // Read response as text first
     })
     .then(text => {
-      console.log("Raw Response Text:", text); // Log raw text response
+      //console.log("Raw Response Text:", text); // Log raw text response
       try {
         const resData = JSON.parse(text); // Try to parse as JSON
         this.setState({ status: resData.status });
@@ -45,47 +45,8 @@ class Feed extends Component {
   
     this.loadPosts();
     
-    // Set up socket connection
-    const socket = io("http://localhost:8080");
-    socket.on('posts', data => {
-      if (data.action === 'create') {
-        this.addPost(data.post);
-      } else if (data.action === 'update') {
-        this.updatePost(data.post);
-      } else if (data.action === 'delete') {
-        this.loadPosts();
-      }
-    });
   }
   
-
-  addPost = post => {
-    this.setState(prevState => {
-      const updatedPosts = [...prevState.posts];
-      if (prevState.postPage === 1) {
-        updatedPosts.pop();
-        updatedPosts.unshift(post);
-      }
-      return {
-        posts: updatedPosts,
-        totalPosts: prevState.totalPosts + 1
-      };
-    });
-  };
-
-  updatePost = post => {
-    this.setState(prevState => {
-      const updatedPosts = [...prevState.posts];
-      const updatedPostIndex = updatedPosts.findIndex(p => p._id === post._id);
-      if (updatedPostIndex > -1) {
-        updatedPosts[updatedPostIndex] = post;
-      }
-      return {
-        posts: updatedPosts
-      };
-    });
-  };
-
   loadPosts = direction => {
     if (direction) {
       this.setState({ postsLoading: true, posts: [] });
@@ -170,35 +131,50 @@ class Feed extends Component {
     formData.append('title', postData.title);
     formData.append('content', postData.content);
     formData.append('image', postData.image);
-    let url = 'http://localhost:8080/feed/post';
-    let method = 'POST';
-    if (this.state.editPost) {
-      url = 'http://localhost:8080/feed/post/' + this.state.editPost._id;
-      method = 'PUT';
-    }
-
-    fetch(url, {
-      method: method,
-      body: formData,
+    let qraphqlQuery = {
+      query : `
+        mutation {
+          createPost(postInput: {title:"${postData.title}",
+          content:"${postData.content}",imageUrl:"some url"}) {
+              _id
+              title
+              content
+              imageUrl
+              creator {
+                name
+              }
+              createdAt
+        }
+        }
+      `
+    };
+    fetch('http://localhost:8080/graphql', {
+      method: 'POST',
+      body: JSON.stringify(qraphqlQuery),
       headers : {
-        'Authorization' : 'Bearer ' + this.props.token
+        'Authorization' : 'Bearer ' + this.props.token ,
+        'Content-Type' : 'application/json'
       }
     })
       .then(res => {
-        if (res.status !== 200 && res.status !== 201) {
-          throw new Error('Creating or editing a post failed!');
-        }
         return res.json();
       })
       .then(resData => {
+        if (resData.errors && resData.errors[0].status === 422) {
+          throw new Error('Validation failed! Make sure the email address is not used yet!');
+        }
+        if (resData.errors) {
+          console.log(resData.errors);
+          throw new Error('Create Post failed!');
+        }
         console.log(resData);
-        /*const post = {
-          _id: resData.post._id,
-          title: resData.post.title,
-          content: resData.post.content,
-          creator: resData.post.creator,
-          createdAt: resData.post.createdAt
-        };*/
+        const post = {
+          _id: resData.data.createPost._id,
+          title: resData.data.createPost.title,
+          content: resData.data.createPost.content,
+          creator: resData.data.createPost.creator,
+          createdAt: resData.data.createPost.createdAt
+        };
         this.setState(prevState => {
           return {
             isEditing: false,
